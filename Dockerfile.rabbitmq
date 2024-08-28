@@ -1,0 +1,8 @@
+# Dockerfile for RabbitMQ
+FROM rabbitmq:management
+
+# Enable RabbitMQ Management Plugin (optional, already enabled in 'management' image)
+# RUN rabbitmq-plugins enable --offline rabbitmq_management
+
+# Start RabbitMQ
+CMD ["rabbitmq-server"]

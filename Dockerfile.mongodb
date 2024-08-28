@@ -1,0 +1,8 @@
+# Dockerfile for MongoDB
+FROM mongo:latest
+
+# Custom configuration (optional)
+# COPY mongod.conf /etc/mongod.conf
+
+# Start MongoDB
+CMD ["mongod"]

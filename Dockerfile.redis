@@ -1,0 +1,8 @@
+# Dockerfile for Redis
+FROM redis:latest
+
+# Custom configuration (optional)
+# COPY redis.conf /usr/local/etc/redis/redis.conf
+
+# Start Redis
+CMD ["redis-server"]
