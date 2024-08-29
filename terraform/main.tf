@@ -43,43 +43,37 @@ resource "aws_ecs_cluster" "my_cluster" {
   name = "my-fargate-cluster"
 }
 
-# Lookup for existing ECR repositories
-data "aws_ecr_repository" "redis_repo" {
-  name  = "redis"
-  count = length(try([aws_ecr_repository.redis_repo.name], [])) == 0 ? 0 : 1
+# Check and Create ECR Repositories if not exist
+resource "null_resource" "create_redis_repo" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr describe-repositories --repository-names redis --region ${var.aws_region} || \
+      aws ecr create-repository --repository-name redis --region ${var.aws_region}
+    EOT
+  }
 }
 
-data "aws_ecr_repository" "rabbitmq_repo" {
-  name  = "rabbitmq"
-  count = length(try([aws_ecr_repository.rabbitmq_repo.name], [])) == 0 ? 0 : 1
+resource "null_resource" "create_rabbitmq_repo" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr describe-repositories --repository-names rabbitmq --region ${var.aws_region} || \
+      aws ecr create-repository --repository-name rabbitmq --region ${var.aws_region}
+    EOT
+  }
 }
 
-data "aws_ecr_repository" "mongodb_repo" {
-  name  = "mongo"
-  count = length(try([aws_ecr_repository.mongodb_repo.name], [])) == 0 ? 0 : 1
-}
-
-# Create new ECR repositories only if they do not exist
-resource "aws_ecr_repository" "redis_repo" {
-  count                = length(data.aws_ecr_repository.redis_repo.*.name) == 0 ? 1 : 0
-  name                 = "redis"
-  image_tag_mutability = "MUTABLE"
-}
-
-resource "aws_ecr_repository" "rabbitmq_repo" {
-  count                = length(data.aws_ecr_repository.rabbitmq_repo.*.name) == 0 ? 1 : 0
-  name                 = "rabbitmq"
-  image_tag_mutability = "MUTABLE"
-}
-
-resource "aws_ecr_repository" "mongodb_repo" {
-  count                = length(data.aws_ecr_repository.mongodb_repo.*.name) == 0 ? 1 : 0
-  name                 = "mongo"
-  image_tag_mutability = "MUTABLE"
+resource "null_resource" "create_mongodb_repo" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr describe-repositories --repository-names mongo --region ${var.aws_region} || \
+      aws ecr create-repository --repository-name mongo --region ${var.aws_region}
+    EOT
+  }
 }
 
 # Redis Task Definition
 resource "aws_ecs_task_definition" "redis" {
+  depends_on               = [null_resource.create_redis_repo]
   family                   = "redis"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
@@ -89,7 +83,7 @@ resource "aws_ecs_task_definition" "redis" {
   container_definitions = jsonencode([
     {
       name      = "redis"
-      image     = "${data.aws_ecr_repository.redis_repo.repository_url}:latest"
+      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/redis:latest"
       essential = true
       portMappings = [
         {
@@ -103,6 +97,7 @@ resource "aws_ecs_task_definition" "redis" {
 
 # RabbitMQ Task Definition
 resource "aws_ecs_task_definition" "rabbitmq" {
+  depends_on               = [null_resource.create_rabbitmq_repo]
   family                   = "rabbitmq"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
@@ -112,7 +107,7 @@ resource "aws_ecs_task_definition" "rabbitmq" {
   container_definitions = jsonencode([
     {
       name      = "rabbitmq"
-      image     = "${data.aws_ecr_repository.rabbitmq_repo.repository_url}:latest"
+      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/rabbitmq:latest"
       essential = true
       portMappings = [
         {
@@ -130,6 +125,7 @@ resource "aws_ecs_task_definition" "rabbitmq" {
 
 # MongoDB Task Definition
 resource "aws_ecs_task_definition" "mongodb" {
+  depends_on               = [null_resource.create_mongodb_repo]
   family                   = "mongodb"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
@@ -139,7 +135,7 @@ resource "aws_ecs_task_definition" "mongodb" {
   container_definitions = jsonencode([
     {
       name      = "mongodb"
-      image     = "${data.aws_ecr_repository.mongodb_repo.repository_url}:latest"
+      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/mongo:latest"
       essential = true
       portMappings = [
         {
