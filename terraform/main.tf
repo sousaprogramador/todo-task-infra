@@ -2,30 +2,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Variáveis
-variable "create_vpc" {
-  description = "Se deve criar uma nova VPC"
-  type        = bool
-  default     = false
-}
-
-variable "existing_vpc_id" {
-  description = "ID de uma VPC existente, usada se create_vpc for falso"
-  type        = string
-  default     = ""
-}
-
-variable "aws_region" {
-  description = "Região AWS"
-  type        = string
-  default     = "sa-east-1"
-}
-
-variable "aws_account_id" {
-  description = "ID da conta AWS"
-  type        = string
-}
-
 # Reutilizar a Role IAM existente
 data "aws_iam_role" "ecs_task_execution_role" {
   name = "ecsTaskExecutionRole"
