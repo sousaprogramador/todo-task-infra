@@ -43,50 +43,38 @@ resource "aws_ecs_cluster" "my_cluster" {
   name = "my-fargate-cluster"
 }
 
-# ECR Repository Creation with Conditional Check
-resource "null_resource" "create_ecr_redis" {
-  provisioner "local-exec" {
-    command = <<EOT
-      aws ecr describe-repositories --repository-names redis --region ${var.aws_region} || \
-      aws ecr create-repository --repository-name redis --region ${var.aws_region}
-    EOT
-  }
+# Lookup for existing ECR repositories
+data "aws_ecr_repository" "redis_repo" {
+  name  = "redis"
+  count = length(try([aws_ecr_repository.redis_repo.name], [])) == 0 ? 0 : 1
 }
 
-resource "null_resource" "create_ecr_rabbitmq" {
-  provisioner "local-exec" {
-    command = <<EOT
-      aws ecr describe-repositories --repository-names rabbitmq --region ${var.aws_region} || \
-      aws ecr create-repository --repository-name rabbitmq --region ${var.aws_region}
-    EOT
-  }
+data "aws_ecr_repository" "rabbitmq_repo" {
+  name  = "rabbitmq"
+  count = length(try([aws_ecr_repository.rabbitmq_repo.name], [])) == 0 ? 0 : 1
 }
 
-resource "null_resource" "create_ecr_mongo" {
-  provisioner "local-exec" {
-    command = <<EOT
-      aws ecr describe-repositories --repository-names mongo --region ${var.aws_region} || \
-      aws ecr create-repository --repository-name mongo --region ${var.aws_region}
-    EOT
-  }
+data "aws_ecr_repository" "mongodb_repo" {
+  name  = "mongo"
+  count = length(try([aws_ecr_repository.mongodb_repo.name], [])) == 0 ? 0 : 1
 }
 
-# Ensure that the ECS Task Definitions and Services wait for ECR Repositories to be created
+# Create new ECR repositories only if they do not exist
 resource "aws_ecr_repository" "redis_repo" {
+  count                = length(data.aws_ecr_repository.redis_repo.*.name) == 0 ? 1 : 0
   name                 = "redis"
-  depends_on           = [null_resource.create_ecr_redis]
   image_tag_mutability = "MUTABLE"
 }
 
 resource "aws_ecr_repository" "rabbitmq_repo" {
+  count                = length(data.aws_ecr_repository.rabbitmq_repo.*.name) == 0 ? 1 : 0
   name                 = "rabbitmq"
-  depends_on           = [null_resource.create_ecr_rabbitmq]
   image_tag_mutability = "MUTABLE"
 }
 
 resource "aws_ecr_repository" "mongodb_repo" {
+  count                = length(data.aws_ecr_repository.mongodb_repo.*.name) == 0 ? 1 : 0
   name                 = "mongo"
-  depends_on           = [null_resource.create_ecr_mongo]
   image_tag_mutability = "MUTABLE"
 }
 
@@ -101,7 +89,7 @@ resource "aws_ecs_task_definition" "redis" {
   container_definitions = jsonencode([
     {
       name      = "redis"
-      image     = "${aws_ecr_repository.redis_repo.repository_url}:latest"
+      image     = "${data.aws_ecr_repository.redis_repo.repository_url}:latest"
       essential = true
       portMappings = [
         {
@@ -124,7 +112,7 @@ resource "aws_ecs_task_definition" "rabbitmq" {
   container_definitions = jsonencode([
     {
       name      = "rabbitmq"
-      image     = "${aws_ecr_repository.rabbitmq_repo.repository_url}:latest"
+      image     = "${data.aws_ecr_repository.rabbitmq_repo.repository_url}:latest"
       essential = true
       portMappings = [
         {
@@ -151,7 +139,7 @@ resource "aws_ecs_task_definition" "mongodb" {
   container_definitions = jsonencode([
     {
       name      = "mongodb"
-      image     = "${aws_ecr_repository.mongodb_repo.repository_url}:latest"
+      image     = "${data.aws_ecr_repository.mongodb_repo.repository_url}:latest"
       essential = true
       portMappings = [
         {
