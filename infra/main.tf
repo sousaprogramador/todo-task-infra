@@ -10,13 +10,13 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "subnet_1" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.1.0/24"
-  availability_zone = "sa-east-1a" # Zona de disponibilidade para sa-east-1
+  availability_zone = "sa-east-1a"
 }
 
 resource "aws_subnet" "subnet_2" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.2.0/24"
-  availability_zone = "sa-east-1b" # Zona de disponibilidade para sa-east-1
+  availability_zone = "sa-east-1b"
 }
 
 resource "aws_security_group" "ecs_sg" {
@@ -43,6 +43,53 @@ resource "aws_ecs_cluster" "my_cluster" {
   name = "my-fargate-cluster"
 }
 
+# ECR Repository Creation with Conditional Check
+resource "null_resource" "create_ecr_redis" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr describe-repositories --repository-names redis --region ${var.aws_region} || \
+      aws ecr create-repository --repository-name redis --region ${var.aws_region}
+    EOT
+  }
+}
+
+resource "null_resource" "create_ecr_rabbitmq" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr describe-repositories --repository-names rabbitmq --region ${var.aws_region} || \
+      aws ecr create-repository --repository-name rabbitmq --region ${var.aws_region}
+    EOT
+  }
+}
+
+resource "null_resource" "create_ecr_mongo" {
+  provisioner "local-exec" {
+    command = <<EOT
+      aws ecr describe-repositories --repository-names mongo --region ${var.aws_region} || \
+      aws ecr create-repository --repository-name mongo --region ${var.aws_region}
+    EOT
+  }
+}
+
+# Ensure that the ECS Task Definitions and Services wait for ECR Repositories to be created
+resource "aws_ecr_repository" "redis_repo" {
+  name                 = "redis"
+  depends_on           = [null_resource.create_ecr_redis]
+  image_tag_mutability = "MUTABLE"
+}
+
+resource "aws_ecr_repository" "rabbitmq_repo" {
+  name                 = "rabbitmq"
+  depends_on           = [null_resource.create_ecr_rabbitmq]
+  image_tag_mutability = "MUTABLE"
+}
+
+resource "aws_ecr_repository" "mongodb_repo" {
+  name                 = "mongo"
+  depends_on           = [null_resource.create_ecr_mongo]
+  image_tag_mutability = "MUTABLE"
+}
+
 # Redis Task Definition
 resource "aws_ecs_task_definition" "redis" {
   family                   = "redis"
@@ -54,7 +101,7 @@ resource "aws_ecs_task_definition" "redis" {
   container_definitions = jsonencode([
     {
       name      = "redis"
-      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/redis:latest"
+      image     = "${aws_ecr_repository.redis_repo.repository_url}:latest"
       essential = true
       portMappings = [
         {
@@ -77,7 +124,7 @@ resource "aws_ecs_task_definition" "rabbitmq" {
   container_definitions = jsonencode([
     {
       name      = "rabbitmq"
-      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/rabbitmq:latest"
+      image     = "${aws_ecr_repository.rabbitmq_repo.repository_url}:latest"
       essential = true
       portMappings = [
         {
@@ -104,7 +151,7 @@ resource "aws_ecs_task_definition" "mongodb" {
   container_definitions = jsonencode([
     {
       name      = "mongodb"
-      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/mongo:latest"
+      image     = "${aws_ecr_repository.mongodb_repo.repository_url}:latest"
       essential = true
       portMappings = [
         {
