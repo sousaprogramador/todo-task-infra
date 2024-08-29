@@ -2,6 +2,30 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Variáveis
+variable "create_vpc" {
+  description = "Se deve criar uma nova VPC"
+  type        = bool
+  default     = false
+}
+
+variable "existing_vpc_id" {
+  description = "ID de uma VPC existente, usada se create_vpc for falso"
+  type        = string
+  default     = ""
+}
+
+variable "aws_region" {
+  description = "Região AWS"
+  type        = string
+  default     = "sa-east-1"
+}
+
+variable "aws_account_id" {
+  description = "ID da conta AWS"
+  type        = string
+}
+
 # Reutilizar a Role IAM existente
 data "aws_iam_role" "ecs_task_execution_role" {
   name = "ecsTaskExecutionRole"
@@ -13,12 +37,6 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
 }
 
 # VPC Configuration - Criar apenas se necessário
-variable "create_vpc" {
-  description = "Se deve criar uma nova VPC"
-  type        = bool
-  default     = false
-}
-
 resource "aws_vpc" "main" {
   count      = var.create_vpc ? 1 : 0
   cidr_block = "10.0.0.0/16"
@@ -178,7 +196,7 @@ resource "aws_ecs_service" "redis_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
+    subnets          = var.create_vpc ? [aws_subnet.subnet_1[0].id, aws_subnet.subnet_2[0].id] : var.existing_subnets
     security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
@@ -193,7 +211,7 @@ resource "aws_ecs_service" "rabbitmq_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
+    subnets          = var.create_vpc ? [aws_subnet.subnet_1[0].id, aws_subnet.subnet_2[0].id] : var.existing_subnets
     security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
@@ -208,7 +226,7 @@ resource "aws_ecs_service" "mongodb_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
+    subnets          = var.create_vpc ? [aws_subnet.subnet_1[0].id, aws_subnet.subnet_2[0].id] : var.existing_subnets
     security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
